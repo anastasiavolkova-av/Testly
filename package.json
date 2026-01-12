@@ -1,0 +1,14 @@
+{
+  "name": "ab-test-project",
+  "version": "1.0.0",
+  "description": "A/B тестирование",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js"
+  },
+  "dependencies": {
+    "cookie-parser": "^1.4.7",
+    "express": "^4.22.1"
+  }
+}
