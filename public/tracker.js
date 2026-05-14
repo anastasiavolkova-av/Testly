@@ -16,6 +16,7 @@ class AbTestTracker {
         this.userId = this.getOrCreateUserId();
         this.sessionId = this.generateSessionId();
         this.abTestGroup = this.assignAbTestGroup();
+        this.experimentId = this.resolveExperimentId();
 
         this.eventQueue = [];
         this.sessionStartTime = Date.now();
@@ -56,6 +57,23 @@ class AbTestTracker {
     return group;
     }
 
+    resolveExperimentId() {
+        const fromBody = Number(document.body?.dataset?.experimentId);
+        if (Number.isInteger(fromBody) && fromBody > 0) return fromBody;
+
+        const pathMatch = window.location.pathname.match(/\/exp\/(\d+)/i);
+        if (pathMatch) {
+            const fromPath = Number(pathMatch[1]);
+            if (Number.isInteger(fromPath) && fromPath > 0) return fromPath;
+        }
+
+        const params = new URLSearchParams(window.location.search);
+        const fromQuery = Number(params.get('experiment_id') || params.get('exp_id'));
+        if (Number.isInteger(fromQuery) && fromQuery > 0) return fromQuery;
+
+        return null;
+    }
+
     getDeviceInfo() {
         const ua = navigator.userAgent.toLowerCase();
         let deviceType = 'desktop';
@@ -93,6 +111,7 @@ class AbTestTracker {
                 user: this.userId,
                 session: this.sessionId,
                 group: this.abTestGroup,
+                experiment: this.experimentId,
                 device: this.getDeviceInfo()
             });
         }
@@ -112,13 +131,63 @@ class AbTestTracker {
         }
 
         window.addEventListener('beforeunload', () => {
-            this.trackEvent('session_end', {
+    // Создаем событие
+    const event = {
+        event_id: 'e_' + Date.now() + '_' + Math.random().toString(36).substr(2, 6),
+        event_name: 'session_end',
+        timestamp: new Date().toISOString(),
+        user_id: this.userId,
+        session_id: this.sessionId,
+        experiment_id: this.experimentId,
+        ab_group: this.abTestGroup,
+        page: window.location.pathname,
+        properties: {
+            duration: Date.now() - this.sessionStartTime,
+            scroll_max: this.scrollDepth,
+            total_events: this.eventQueue.length + 1
+        }
+    };
+
+    // Пробуем отправить через sendBeacon (работает при закрытии)
+    if (navigator.sendBeacon) {
+        const blob = new Blob([JSON.stringify([event])], { 
+            type: 'application/json' 
+        });
+        navigator.sendBeacon(this.config.apiEndpoint, blob);
+    }
+    
+    // На всякий случай оставляем старый метод
+    this.flushQueue(true);
+});
+
+// Добавьте это рядом с beforeunload
+window.addEventListener('pagehide', () => {
+    // Для мобильных - то же самое, что beforeunload
+    if (navigator.sendBeacon) {
+        const event = {
+            event_id: 'e_' + Date.now() + '_' + Math.random().toString(36).substr(2, 6),
+            event_name: 'session_end',
+            timestamp: new Date().toISOString(),
+            user_id: this.userId,
+            session_id: this.sessionId,
+            experiment_id: this.experimentId,
+            ab_group: this.abTestGroup,
+            page: window.location.pathname,
+            properties: {
                 duration: Date.now() - this.sessionStartTime,
                 scroll_max: this.scrollDepth,
-                total_events: this.eventQueue.length + 1
-            });
-            this.flushQueue(true);
+                total_events: this.eventQueue.length + 1,
+                end_reason: 'pagehide'
+            }
+        };
+        
+        const blob = new Blob([JSON.stringify([event])], { 
+            type: 'application/json' 
         });
+        navigator.sendBeacon(this.config.apiEndpoint, blob);
+    }
+});
+
     }
 
     setupTracking() {
@@ -173,7 +242,6 @@ class AbTestTracker {
             class: element.className || null, // Все классы
             type: element.type || null,
             name: element.name || null,
-            value: element.value ? element.value.substring(0, 50) : null,
             text: element.textContent?.trim().substring(0, 100) || null,
             role: element.getAttribute('role') || null,
             placeholder: element.placeholder || null
@@ -216,8 +284,7 @@ class AbTestTracker {
                     field_type: e.target.type || 'text',
                     field_id: e.target.id || null,
                     field_name: e.target.name || null,
-                    placeholder: e.target.placeholder || null,
-                    initial_value: this.lastInputValue
+                    placeholder: e.target.placeholder || null
                 });
             }
         });
@@ -333,6 +400,7 @@ class AbTestTracker {
             timestamp: new Date().toISOString(),
             user_id: this.userId,
             session_id: this.sessionId,
+            experiment_id: this.experimentId,
             ab_group: this.abTestGroup,
             page: window.location.pathname,
             page_url: window.location.href,

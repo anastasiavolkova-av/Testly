@@ -1,20 +1,35 @@
 # Зависимости
 node_modules/
 
-# Логи и данные
-data/events.log     
-*.log              
+# Логи и runtime-данные приложения
+data/
+*.log
 
-# Файлы окружения 
+# Загруженные варианты экспериментов (HTML из дашборда)
+storage/experiments/
+
+# Файлы окружения
 .env
-.env.local
+.env.*
+!.env.example
+
+# Python (локальные окружения и кэш)
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+*$py.class
+.Python
 
 # Системные файлы
 .DS_Store
 Thumbs.db
 
-# Идеи редактора/IDE
+# Редактор / IDE
 .idea/
 .vscode/
 *.swp
 *.swo
+
+# Cursor (локальные артефакты сессии)
+.cursor/
